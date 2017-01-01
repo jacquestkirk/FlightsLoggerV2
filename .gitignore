@@ -1,3 +1,4 @@
 /Credentials.py
 .idea/
 __pycache__/
+.env

@@ -1,6 +1,7 @@
-from Credentials import * #Warning: This is not pushed to source control
+#from Credentials import * #Warning: This is not pushed to source control
 import requests
 import json
+import os
 
 class GoogleFlightsPoller:
 
@@ -62,7 +63,8 @@ class GoogleFlightsPoller:
     def SendQuery(self):
         assert self.request != '' , "Request is not yet defined"
 
-        url = "https://www.googleapis.com/qpxExpress/v1/trips/search?key=" + Credentials.googleApi
+        key = os.environ.get('GOOGLE_FLIGHTS_API_KEY', 'AIzaSyD-4ygYT2eBqK1zqSXT5PxsnK6Hqq6u7ME')
+        url = "https://www.googleapis.com/qpxExpress/v1/trips/search?key=" + key
         headers = {'content-type': 'application/json'}
 
         response = requests.post(url, data=json.dumps(self.request), headers=headers)
