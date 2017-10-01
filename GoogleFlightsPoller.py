@@ -16,6 +16,8 @@ class GoogleFlightsPoller:
         self.prices =[]
         self.sliceList = []
 
+    def ClearSliceList(self):
+        self.sliceList=[]
 
     def BuildSlicesOneWay(self, origin, destination, date_yyyy_mm_dd):
         slice1 = {
@@ -40,6 +42,20 @@ class GoogleFlightsPoller:
 
         self.sliceList = [slice1, slice2]
 
+    def BuildSlicesOneWayList(self, origin_list, destination_list, date_list_yyyy_mm_dd):
+        for origin in origin_list:
+            for destination in destination_list:
+                for date in date_list_yyyy_mm_dd:
+                    slice = {
+                                "origin": origin,
+                                "destination": destination,
+                                "date": date
+                            }
+                    self.sliceList.append(slice)
+
+    def BuildSlicesRoundTripList(self, origin_list, destination_list, depart_date_list_yyyy_mm_dd, return_date_list_yyyy_mm_dd):
+        self.BuildSlicesOneWayList(origin_list, destination_list, depart_date_list_yyyy_mm_dd)
+        self.BuildSlicesOneWayList(destination_list, origin_list, return_date_list_yyyy_mm_dd)
 
     def BuildRequest(self, num_passengers, num_responses  = 10):
 
@@ -82,16 +98,33 @@ class GoogleFlightsPoller:
             string_price = string_price_w_units.replace('USD', '') #remove the USD substring
             self.prices.append(float(string_price))
 
+    def JsonifyResult(self):
+        jsonified = self.response.__str__().replace("'",'"')
+        jsonified = jsonified.replace('Chicago O"Hare', "Chicago O'Hare")
+        jsonified = jsonified.replace('True', '"TRUE"')
+        return jsonified
+
 
 
 if __name__ == "__main__":
     from GoogleFlightsPoller import *
     gfp = GoogleFlightsPoller()
+
+
+    origin_list = ['AUS']
+    destination_list = ['ORD']
+    depart_date_list = ['2018-01-01','2018-01-02','2018-01-03','2018-01-04','2018-01-05']
+    arrival_date_list = ['2018-01-06', '2018-01-07','2018-01-08','2018-01-09','2018-01-10']
+
     #gfp.BuildSlicesOneWay(origin = 'AUS', destination = 'DAY', date_yyyy_mm_dd = '2017-01-20')
-    gfp.BuildSlicesRoundTrip(origin = 'AUS', destination = 'DAY', depart_date_yyyy_mm_dd= '2017-01-20', return_date_yyyy_mm_dd= '2017-01-25')
-    gfp.BuildRequest( num_passengers= 1 , num_responses = 5)
+    #gfp.BuildSlicesRoundTrip(origin='AUS', destination='DAY', depart_date_yyyy_mm_dd='2018-01-20', return_date_yyyy_mm_dd='2018-01-25')
+    gfp.ClearSliceList()
+    gfp.BuildSlicesRoundTripList(origin_list, destination_list,depart_date_list, arrival_date_list)
+    print( 'number of slices: ' + str(gfp.sliceList.__len__()))
+    gfp.BuildRequest( num_passengers= 1 , num_responses = 1)
     print('sending query')
     gfp.SendQuery()
     print('response received')
-    gfp.GetPrices()
-    print(gfp.prices)
+
+    #gfp.GetPrices()
+    #print(gfp.prices)
