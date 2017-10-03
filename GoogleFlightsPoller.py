@@ -2,8 +2,73 @@
 import requests
 import json
 import os
+import datetime
+from dateutil.parser import parse
+
+class Segment:
+
+    def __init__(self):
+        self.OriginCode = ""
+        self.DestinationCode = ""
+        self.DepartureTime = -1
+        self.ArrivalTime = -1
+        self.CarrierCode = ""
+        self.FlightNumber = -1
+        self.CabinClass = -1
+        self.SegmentDuration_min = -1
+        self.OnTimePerformance = -1
+        self.Mileage = -1
+
+
+    def __repr__(self):
+        repr_str = []
+        repr_str.append("Origin Code: " + self.OriginCode)
+        repr_str.append("Destination Code: " + self.DestinationCode)
+        repr_str.append("Departure Time: " + str(self.DepartureTime))
+        repr_str.append("Arrival Time: " + str(self.ArrivalTime))
+        repr_str.append("Carrier Code: " + self.CarrierCode)
+        repr_str.append("Flight Number: " + str(self.FlightNumber))
+        repr_str.append("Cabin Class: " + str(self.CabinClass))
+        repr_str.append("Segment Duration (min): " + str(self.SegmentDuration_min))
+        repr_str.append("On Time Performance: " + str(self.OnTimePerformance))
+        repr_str.append("Mileage: " + str(self.Mileage))
+
+        return '\n'.join(repr_str)
+
+
+class OneWayTrip:
+    def __init__(self):
+        self.price = -1
+        self.OriginCode = ""
+        self.DestinationCode = ""
+        self.DepartureTime = -1
+        self.ArrivalTime = -1
+        self.SearchDate = -1
+        self.duration_min = -1
+        self.num_segments = -1
+        self.Segments = []
+        self.Layover1Durations_min = []
+        self.notes = ""
+
+    def __repr__(self):
+        repr_str=  []
+        repr_str.append("Price (USD): " + str(self.price))
+        repr_str.append("Origin Code: " + self.OriginCode)
+        repr_str.append("Destination Code: " + self.DestinationCode)
+        repr_str.append("Departure Time: " + str(self.DepartureTime))
+        repr_str.append("Arrival Time: " + str(self.ArrivalTime))
+        repr_str.append("SearchDate: " + str(self.SearchDate))
+        repr_str.append("Duration (min): " + str(self.duration_min))
+        repr_str.append("numSegments: " + str(self.num_segments))
+        repr_str.append("Segments (count): " + str(self.Segments.__len__()))
+        repr_str.append("Layover Durations: " + str(self.Layover1Durations_min))
+        repr_str.append("notes: " + self.notes)
+
+        return '\n'.join(repr_str)
 
 class GoogleFlightsPoller:
+
+    TripList =[]
 
     class TripType:
         OneWay = 0
@@ -76,6 +141,9 @@ class GoogleFlightsPoller:
         self.expected_num_responses = num_responses
         print (self.request)
 
+
+
+
     def SendQuery(self):
         assert self.request != '' , "Request is not yet defined"
 
@@ -86,6 +154,82 @@ class GoogleFlightsPoller:
         response = requests.post(url, data=json.dumps(self.request), headers=headers)
         self.response = response.json()
         print (self.response)
+
+    def ParseResults(self):
+        assert self.response != {}, 'Valid response has not been received'
+
+        self.TripList = []
+
+        num_responses = self.response['trips']['tripOption'].__len__()
+
+        for i in range(0, num_responses):
+
+            trip = OneWayTrip()
+
+            #make sure it is a one way flight
+            num_slices = self.response['trips']['tripOption'][i]['slice'].__len__()
+            if num_slices > 1:
+                trip.notes = "Error: ParseResults() only works on one way flights"
+                self.TripList.append(trip)
+                continue
+
+
+
+
+            #build up each segment
+            trip.num_segments = self.response['trips']['tripOption'][i]['slice'][0]['segment'].__len__()
+
+            for n in range(0, trip.num_segments):
+
+                #treat the legs as a separate segment
+                num_legs = self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'].__len__()
+                trip.num_segments += num_legs -1
+
+                for m in range(0,num_legs):
+                    newSegment = Segment()
+
+                    newSegment.OriginCode = self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]['origin']
+                    newSegment.DestinationCode = self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]['destination']
+                    newSegment.DepartureTime = parse(self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]['departureTime'])
+                    newSegment.ArrivalTime = parse(self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]['arrivalTime'])
+                    newSegment.CarrierCode = self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['flight']['carrier']
+                    newSegment.FlightNumber = self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['flight']['number']
+                    newSegment.CabinClass = self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['cabin']
+                    newSegment.SegmentDuration_min = float(self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]['duration'])
+
+                    if self.response['trips']['tripOption'][i]['slice'][0]['segment'][n].keys().__contains__('onTimePerformance'):
+                        trip.Layover1Durations_min.append(float(self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]["onTimePerformance"]))
+
+                    #OnTimePerformance = 0 #I don't know if this stuff has on time performance
+                    newSegment.Mileage = float(self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]['leg'][m]['mileage'])
+
+                    if self.response['trips']['tripOption'][i]['slice'][0]['segment'][n].keys().__contains__('connectionDuration'):
+                        trip.Layover1Durations_min.append(float(self.response['trips']['tripOption'][i]['slice'][0]['segment'][n]["connectionDuration"]))
+
+
+                    trip.Segments.append(newSegment)
+
+
+
+            # build up the trip
+            string_price_w_units = self.response['trips']['tripOption'][i]['saleTotal']
+            string_price = string_price_w_units.replace('USD', '')  # remove the USD substring
+            trip.price = float(string_price)
+
+            trip.SearchDate = datetime.datetime.now()
+            trip.duration_min = self.response['trips']['tripOption'][i]['slice'][0]['duration']
+
+            trip.OriginCode = trip.Segments[0].OriginCode
+            trip.DestinationCode = trip.Segments[-1].DestinationCode
+            trip.DepartureTime = trip.Segments[0].DepartureTime
+            trip.ArrivalTime = trip.Segments[-1].ArrivalTime
+
+            self.TripList.append(trip)
+
+
+
+
+
 
     def GetPrices(self):
         assert self.response != {} , 'Valid response has not been received'
@@ -116,12 +260,13 @@ if __name__ == "__main__":
     depart_date_list = ['2018-01-01','2018-01-02','2018-01-03','2018-01-04','2018-01-05']
     arrival_date_list = ['2018-01-06', '2018-01-07','2018-01-08','2018-01-09','2018-01-10']
 
-    #gfp.BuildSlicesOneWay(origin = 'AUS', destination = 'DAY', date_yyyy_mm_dd = '2017-01-20')
+
     #gfp.BuildSlicesRoundTrip(origin='AUS', destination='DAY', depart_date_yyyy_mm_dd='2018-01-20', return_date_yyyy_mm_dd='2018-01-25')
     gfp.ClearSliceList()
-    gfp.BuildSlicesRoundTripList(origin_list, destination_list,depart_date_list, arrival_date_list)
+    gfp.BuildSlicesOneWay(origin='AUS', destination='DAY', date_yyyy_mm_dd='2017-12-23')
+    #gfp.BuildSlicesRoundTripList(origin_list, destination_list,depart_date_list, arrival_date_list)
     print( 'number of slices: ' + str(gfp.sliceList.__len__()))
-    gfp.BuildRequest( num_passengers= 1 , num_responses = 1)
+    gfp.BuildRequest( num_passengers= 1 , num_responses = 5)
     print('sending query')
     gfp.SendQuery()
     print('response received')
