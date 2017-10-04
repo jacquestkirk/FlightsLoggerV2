@@ -4,6 +4,7 @@ import json
 import os
 import datetime
 from dateutil.parser import parse
+from logger.models import Trip_Info, Segment_Info
 
 class Segment:
 
@@ -248,9 +249,81 @@ class GoogleFlightsPoller:
         jsonified = jsonified.replace('True', '"TRUE"')
         return jsonified
 
+    def PushToDb(self):
+        for trip in self.TripList:
+            tripdb = Trip_Info()
+            tripdb.price = trip.price
+            tripdb.OriginCode = trip.OriginCode
+            tripdb.DestinationCode = trip.DestinationCode
+            tripdb.DepartureTime = trip.DepartureTime
+            tripdb.ArrivalTime = trip.ArrivalTime
+            tripdb.SearchDate = trip.SearchDate
+            tripdb.duration_min = trip.duration_min
+            tripdb.num_segments = trip.num_segments
+            tripdb.notes = trip.notes
+
+            if trip.num_segments > 4:
+                tripdb.notes += " Too many trip segments to add to DB"
+                tripdb.save()
+                return
+
+
+            for i in range(0,trip.num_segments):
+
+                segment = trip.Segments[i]
+
+                segmentdB = Segment_Info()
+
+                segmentdB.OriginCode = segment.OriginCode
+                segmentdB.DestinationCode = segment.DestinationCode
+                segmentdB.DepartureTime = segment.DepartureTime
+                segmentdB.ArrivalTime = segment.ArrivalTime
+                segmentdB.CarrierCode = segment.CarrierCode
+                segmentdB.FlightNumber = segment.FlightNumber
+                segmentdB.CabinClass = segment.CabinClass
+                segmentdB.SegmentDuration_min = segment.SegmentDuration_min
+                segmentdB.OnTimePerformance = segment.OnTimePerformance
+                segmentdB.Mileage = segment.Mileage
+
+                #is there a copy, If not, add
+                segmentCheck = Segment_Info.objects.filter(FlightNumber = segmentdB.FlightNumber, DepartureTime = segmentdB.DepartureTime, ArrivalTime = segmentdB.ArrivalTime)
+
+                if not segmentCheck:
+                    segmentdB.save()
+                else:
+                    segmentdB = segmentCheck[0]
+
+                if i == 0:
+                    tripdb.Segment1 = segmentdB
+                elif i == 1:
+                    tripdb.Segment2 = segmentdB
+                elif i == 2:
+                    tripdb.Segment3 = segmentdB
+                elif i == 3:
+                    tripdb.Segment4 = segmentdB
+
+            for i in range(0,trip.Layover1Durations_min.__len__()):
+                if i == 0:
+                    tripdb.Layover1Durations1 = trip.Layover1Durations_min[i]
+                if i == 1:
+                    tripdb.Layover1Durations2 = trip.Layover1Durations_min[i]
+                if i == 2:
+                    tripdb.Layover1Durations3 = trip.Layover1Durations_min[i]
+
+            #check if we have already added the trip, save if not
+            tripCheck = Trip_Info.objects.filter(SearchDate=tripdb.SearchDate, Segment1=tripdb.Segment1, Segment2=tripdb.Segment2, Segment3=tripdb.Segment3, Segment4=tripdb.Segment4)
+            if not tripCheck:
+                tripdb.save()
+
+
+
+
+
 
 
 if __name__ == "__main__":
+    import django
+    django.setup()
     from GoogleFlightsPoller import *
     gfp = GoogleFlightsPoller()
 

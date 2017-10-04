@@ -2,6 +2,43 @@ from django.db import models
 
 # Create your models here.
 
+class Segment_Info(models.Model):
+    id = models.AutoField(primary_key=True)
+    OriginCode = models.CharField(max_length=5)
+    DestinationCode = models.CharField(max_length=5)
+    DepartureTime = models.DateTimeField(auto_now=False, auto_now_add=False)
+    ArrivalTime = models.DateTimeField(auto_now=False, auto_now_add=False)
+    CarrierCode = models.CharField(max_length=5)
+    FlightNumber = models.IntegerField()
+    CabinClass = models.CharField(max_length=10)
+    SegmentDuration_min = models.IntegerField()
+    OnTimePerformance = models.IntegerField()
+    Mileage = models.IntegerField()
+
+    class Meta:
+        unique_together = ['DepartureTime', 'ArrivalTime', 'FlightNumber']
+
+class Trip_Info(models.Model):
+    id = models.AutoField(primary_key=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    OriginCode = models.CharField(max_length=5)
+    DestinationCode = models.CharField(max_length=5)
+    DepartureTime = models.DateTimeField(auto_now=False, auto_now_add=False)
+    ArrivalTime = models.DateTimeField(auto_now=False, auto_now_add=False)
+    SearchDate = models.DateTimeField(auto_now=False, auto_now_add=False)
+    duration_min = models.IntegerField()
+    num_segments = models.IntegerField()
+    Segment1 = models.ForeignKey(Segment_Info, null=True, related_name="segment1")
+    Segment2 = models.ForeignKey(Segment_Info, null=True, related_name="segment2")
+    Segment3 = models.ForeignKey(Segment_Info, null=True, related_name="segment3")
+    Segment4 = models.ForeignKey(Segment_Info, null=True, related_name="segment4")
+    Layover1Durations1 = models.IntegerField(null = True)
+    Layover1Durations2 = models.IntegerField(null = True)
+    Layover1Durations3 = models.IntegerField(null = True)
+    notes = models.CharField(max_length=50)
+
+
+
 class Flight_Info(models.Model):
 
     header = 'Type,Price (USD),Flight Duration Departure(min),Flight Duration Return(min), Airline,Miles,Legs Departure,Legs Arrival,Query Time,Origin Airport,Destination Airport,Departing Date,Return Date,Departing Departure Time,Departing Arrival Time,Return Departure Time,Return Arrival Time,Query Time (sec)' + '<br/>' +'\r\n'
